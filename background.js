@@ -177,6 +177,17 @@ function rangeCutoff(days) {
 browserAPI.runtime.onMessage.addListener((message, sender) => {
     if (message.type === 'NEW_TICKER_PAIRS') {
         return ready.then(() => queuePairs(message.pairs));
+    } else if (message.type === 'AUTO_SCROLL_STATUS') {
+        if (message.isScrolling) {
+            browserAPI.browserAction.setBadgeText({ text: '' });
+        } else if (message.reason === 'deadline') {
+            // Collection finished: upload now and mark the toolbar icon in case the popup is closed
+            scheduleFlush(0);
+            browserAPI.browserAction.setBadgeBackgroundColor({ color: '#2dd4a0' });
+            browserAPI.browserAction.setBadgeText({ text: '\u2713' });
+        } else {
+            browserAPI.browserAction.setBadgeText({ text: '' });
+        }
     } else if (message.type === 'GET_OUTBOX_COUNT') {
         return ready.then(() => outbox.size);
     } else if (message.type === 'GET_TURSO_FILE_HOST') {

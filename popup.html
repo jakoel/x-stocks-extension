@@ -230,7 +230,7 @@
         .stat-value.muted { color: var(--muted); }
 
         /* ---------- Form controls ---------- */
-        select, input[type="text"], input[type="password"] {
+        select, input[type="text"], input[type="password"], input[type="date"] {
             width: 100%;
             height: 38px;
             padding: 0 12px;
@@ -262,6 +262,10 @@
         }
 
         .field + .field { margin-top: 12px; }
+
+        input[type="date"] { color-scheme: dark; min-width: 0; }
+        .deadline { margin-top: 14px; }
+        .deadline button { min-height: 38px; }
 
         /* ---------- Database card ---------- */
         .conn {
@@ -447,7 +451,14 @@
             <span id="autoScrollIcon" aria-hidden="true"></span>
             <span id="autoScrollLabel">Start Auto-Scroll</span>
         </button>
-        <p class="hint">Open the Following tab on x.com, then press start.</p>
+        <div class="deadline">
+            <label for="stopDate">Collect back to</label>
+            <div class="row">
+                <input type="date" id="stopDate" class="grow">
+                <button id="clearDateBtn" class="btn-sm" type="button" title="Remove the deadline">Clear</button>
+            </div>
+        </div>
+        <p class="hint" id="deadlineHint">No deadline: scrolls until you stop it.</p>
     </section>
 
     <section class="stats" aria-label="Statistics">

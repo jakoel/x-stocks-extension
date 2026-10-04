@@ -28,6 +28,9 @@ const tursoSection = $('tursoSection');
 const tursoStatus = $('tursoStatus');
 const clearTursoBtn = $('clearTursoBtn');
 const uploadBtn = $('uploadBtn');
+const stopDateInput = $('stopDate');
+const clearDateBtn = $('clearDateBtn');
+const deadlineHint = $('deadlineHint');
 const modeTickers = $('modeTickers');
 const modeAuthors = $('modeAuthors');
 const includeCrypto = $('includeCrypto');
@@ -239,6 +242,36 @@ uploadBtn.addEventListener('click', () => {
     });
 });
 
+// ---------- Collection deadline ----------
+function localDateString(date = new Date()) {
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+function formatDeadline(value) {
+    return new Date(value + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function updateDeadlineHint() {
+    deadlineHint.textContent = stopDateInput.value
+        ? `Stops automatically once posts older than ${formatDeadline(stopDateInput.value)} appear.`
+        : 'No deadline: scrolls until you stop it.';
+}
+
+stopDateInput.max = localDateString();
+stopDateInput.addEventListener('change', () => {
+    browserAPI.storage.local.set({ stopDate: stopDateInput.value || null });
+    updateDeadlineHint();
+});
+clearDateBtn.addEventListener('click', () => {
+    stopDateInput.value = '';
+    browserAPI.storage.local.set({ stopDate: null });
+    updateDeadlineHint();
+});
+browserAPI.storage.local.get('stopDate').then(result => {
+    if (result.stopDate) stopDateInput.value = result.stopDate;
+    updateDeadlineHint();
+});
+
 // Auto-scroll button functionality
 let isAutoScrollActive = false;
 
@@ -286,7 +319,14 @@ autoScrollBtn.addEventListener('click', async () => {
             await browserAPI.tabs.sendMessage(tab.id, { type: 'STOP_AUTO_SCROLL' });
             setAutoScrollState(false);
         } else {
-            await browserAPI.tabs.sendMessage(tab.id, { type: 'START_AUTO_SCROLL' });
+            const res = await browserAPI.tabs.sendMessage(tab.id, {
+                type: 'START_AUTO_SCROLL',
+                stopDate: stopDateInput.value || null
+            });
+            if (res && res.ok === false) {
+                showMessage(res.error, 'error');
+                return;
+            }
             setAutoScrollState(true);
         }
     } catch (err) {
@@ -299,6 +339,11 @@ autoScrollBtn.addEventListener('click', async () => {
 browserAPI.runtime.onMessage.addListener((message) => {
     if (message.type === 'AUTO_SCROLL_STATUS') {
         setAutoScrollState(message.isScrolling);
+        if (!message.isScrolling && message.reason === 'deadline') {
+            showMessage(`Reached ${formatDeadline(message.deadline)}. Collection complete`, 'success');
+            updatePairCount();
+            updateDbCount();
+        }
     }
 });
 

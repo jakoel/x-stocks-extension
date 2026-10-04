@@ -201,11 +201,47 @@ async function recoverFromStuck() {
     if (isAutoScrolling) humanLikeScroll();
 }
 
+// --- Collection deadline ---
+// "Collect back to" a chosen date: once posts older than it show up, stop and hand everything over.
+let deadlineDate = null;          // 'YYYY-MM-DD' chosen in the popup (local time)
+let deadline = null;              // Date at local midnight of that day
+const oldPostKeys = new Set();    // distinct original posts seen that are older than the deadline
+const DEADLINE_CONFIRMATIONS = 3; // need a few, so one stray old post cannot end the run early
+
+function checkDeadline() {
+    if (!deadline) return false;
+    document.querySelectorAll('article').forEach(article => {
+        // Reposts show the original post's time, so only original posts count
+        if (article.querySelector('[data-testid="socialContext"]')) return;
+        const time = article.querySelector('time[datetime]');
+        const link = article.querySelector('a[href*="/status/"]');
+        if (!time || !link) return;
+        if (new Date(time.getAttribute('datetime')) < deadline) {
+            oldPostKeys.add(link.getAttribute('href'));
+        }
+    });
+    return oldPostKeys.size >= DEADLINE_CONFIRMATIONS;
+}
+
+// The deadline logic assumes a chronological feed, so on the home page require the Following tab
+function isFollowingTabSelected() {
+    const tab = Array.from(document.querySelectorAll('[role="tab"]'))
+        .find(t => t.textContent.trim() === 'Following');
+    return !!tab && tab.getAttribute('aria-selected') === 'true';
+}
+
 // Human-like scroll function
 function humanLikeScroll() {
     if (!isAutoScrolling || isRecovering) return;
 
     checkProgress();
+    if (checkDeadline()) {
+        console.log(`Twitter Ticker Extractor: reached posts older than ${deadlineDate}, stopping`);
+        // Extract the last posts on screen before stopping (extraction is debounced)
+        sendNewPairs(extractTickerPairs());
+        stopAutoScroll('deadline');
+        return;
+    }
     if (Date.now() - lastProgressAt > STUCK_TIMEOUT) {
         recoverFromStuck();
         return;
@@ -226,13 +262,16 @@ function humanLikeScroll() {
     autoScrollInterval = setTimeout(humanLikeScroll, nextDelay);
 }
 
-// Start auto-scrolling
-function startAutoScroll() {
+// Start auto-scrolling (stopDate: optional 'YYYY-MM-DD' deadline)
+function startAutoScroll(stopDate) {
     if (isAutoScrolling) return;
 
     console.log('Starting auto-scroll...');
     isAutoScrolling = true;
     isRecovering = false;
+    deadlineDate = stopDate || null;
+    deadline = stopDate ? new Date(stopDate + 'T00:00:00') : null;
+    oldPostKeys.clear();
     resetProgress();
 
     // Send message to popup
@@ -244,8 +283,8 @@ function startAutoScroll() {
     humanLikeScroll();
 }
 
-// Stop auto-scrolling
-function stopAutoScroll() {
+// Stop auto-scrolling (reason: 'manual' or 'deadline')
+function stopAutoScroll(reason = 'manual') {
     if (!isAutoScrolling) return;
 
     console.log('Stopping auto-scroll...');
@@ -256,10 +295,12 @@ function stopAutoScroll() {
         autoScrollInterval = null;
     }
 
-    // Send message to popup
+    // Send message to popup and background
     browserAPI.runtime.sendMessage({
         type: 'AUTO_SCROLL_STATUS',
-        isScrolling: false
+        isScrolling: false,
+        reason,
+        deadline: reason === 'deadline' ? deadlineDate : null
     }).catch(() => {});
 }
 
@@ -269,7 +310,11 @@ browserAPI.runtime.onMessage.addListener((message) => {
         seenPairs.clear();
         console.log('Twitter Ticker Extractor: Cache cleared');
     } else if (message.type === 'START_AUTO_SCROLL') {
-        startAutoScroll();
+        if (location.pathname === '/home' && !isFollowingTabSelected()) {
+            return Promise.resolve({ ok: false, error: 'Switch to the Following tab first' });
+        }
+        startAutoScroll(message.stopDate);
+        return Promise.resolve({ ok: true });
     } else if (message.type === 'STOP_AUTO_SCROLL') {
         stopAutoScroll();
     } else if (message.type === 'GET_AUTO_SCROLL_STATUS') {
