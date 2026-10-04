@@ -48,7 +48,7 @@ function extractTickerPairs() {
 
         // Extract ticker from URL like /search?q=%24OSCR
         if (href && href.includes('q=%24')) {
-            const tickerMatch = href.match(/q=%24([A-Z]+)/i);
+            const tickerMatch = href.match(/q=%24([A-Z][A-Z0-9]*(?:[.-][A-Z0-9]+)*)/i);
             if (tickerMatch) {
                 const ticker = tickerMatch[1].toUpperCase();
 
@@ -140,9 +140,76 @@ if (document.readyState === 'loading') {
 let isAutoScrolling = false;
 let autoScrollInterval = null;
 
+// --- Stuck-page detection ---
+// X sometimes stops loading new posts. If nothing new shows up for STUCK_TIMEOUT ms,
+// scroll back up RECOVERY_POSTS posts and then continue scrolling down.
+const STUCK_TIMEOUT = 6000;
+const RECOVERY_POSTS = 15;
+const seenArticles = new Set(); // every post seen (not only ticker posts)
+let lastProgressAt = Date.now();
+let lastProgressY = 0;
+let isRecovering = false;
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+// Progress = a new post appeared, or we moved further down the page
+function checkProgress() {
+    let progressed = false;
+    document.querySelectorAll('article').forEach(article => {
+        const link = article.querySelector('a[href*="/status/"]');
+        if (!link) return;
+        const key = link.getAttribute('href');
+        if (!seenArticles.has(key)) {
+            seenArticles.add(key);
+            progressed = true;
+        }
+    });
+    if (window.scrollY >= lastProgressY + 100) {
+        progressed = true;
+        lastProgressY = window.scrollY;
+    }
+    if (progressed) lastProgressAt = Date.now();
+}
+
+function resetProgress() {
+    lastProgressAt = Date.now();
+    lastProgressY = window.scrollY;
+}
+
+async function recoverFromStuck() {
+    isRecovering = true;
+    console.log('Twitter Ticker Extractor: page stuck, scrolling up to recover...');
+
+    // Distance of ~RECOVERY_POSTS posts, based on the average height of visible posts
+    const articles = Array.from(document.querySelectorAll('article'));
+    const avgHeight = articles.length
+        ? articles.reduce((sum, a) => sum + a.getBoundingClientRect().height, 0) / articles.length
+        : 300;
+    const total = Math.max(RECOVERY_POSTS * avgHeight * 1.2, 3000);
+
+    let done = 0;
+    while (done < total && isAutoScrolling && window.scrollY > 0) {
+        const step = Math.min(700, total - done);
+        window.scrollBy({ top: -step, behavior: 'smooth' });
+        done += step;
+        await sleep(400 + Math.floor(Math.random() * 300));
+    }
+    await sleep(1500); // let the page settle
+
+    resetProgress();
+    isRecovering = false;
+    if (isAutoScrolling) humanLikeScroll();
+}
+
 // Human-like scroll function
 function humanLikeScroll() {
-    if (!isAutoScrolling) return;
+    if (!isAutoScrolling || isRecovering) return;
+
+    checkProgress();
+    if (Date.now() - lastProgressAt > STUCK_TIMEOUT) {
+        recoverFromStuck();
+        return;
+    }
 
     // 1. THIS CONTROLS SCROLL DISTANCE (currently 300-400 pixels)
     const scrollDistance = Math.floor(Math.random() * 100) + 300;
@@ -165,6 +232,8 @@ function startAutoScroll() {
 
     console.log('Starting auto-scroll...');
     isAutoScrolling = true;
+    isRecovering = false;
+    resetProgress();
 
     // Send message to popup
     browserAPI.runtime.sendMessage({

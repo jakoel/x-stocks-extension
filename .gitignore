@@ -1,0 +1,18 @@
+# Secrets and credentials (the *.example.json templates are tracked)
+turso-config.js
+.env
+.env.*
+scraper/turso.json
+scraper/cookies.json
+scraper/credentials.json
+scraper/storageState.json
+scraper/chrome-profile/
+
+# Dependencies
+node_modules/
+scraper/node_modules/
+
+# Logs, screenshots, local data exports
+*.log
+scraper/*.png
+twitter_tickers_cache.csv

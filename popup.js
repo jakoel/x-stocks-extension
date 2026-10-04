@@ -3,370 +3,253 @@
 // Browser API compatibility for Firefox
 const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 
-const pairCountEl = document.getElementById('pairCount');
-const csvTextArea = document.getElementById('csvText');
-const loadCsvBtn = document.getElementById('loadCsvBtn');
-const loadExistingBtn = document.getElementById('loadExistingBtn');
-const toggleCsvBtn = document.getElementById('toggleCsvBtn');
-const csvSection = document.getElementById('csvSection');
-const timeFilter = document.getElementById('timeFilter');
-const showTopBtn = document.getElementById('showTopBtn');
-const exportBtn = document.getElementById('exportBtn');
-const clearBtn = document.getElementById('clearBtn');
-const messageEl = document.getElementById('message');
-const resultsDiv = document.getElementById('results');
-const resultsContent = document.getElementById('resultsContent');
-const autoScrollBtn = document.getElementById('autoScrollBtn');
-const scrollStatus = document.getElementById('scrollStatus');
-const csvFileInput = document.getElementById('csvFileInput');
+const $ = id => document.getElementById(id);
 
-// Update pair count display
-function updatePairCount() {
-    browserAPI.storage.local.get('tickerPairs').then(result => {
-        if (result.tickerPairs) {
-            const count = Object.keys(result.tickerPairs).length;
-            pairCountEl.textContent = `${count} ticker pairs`;
-            pairCountEl.className = 'status info';
-        } else {
-            pairCountEl.textContent = 'No data stored';
-            pairCountEl.className = 'status info';
-        }
-    });
-}
+const statLocal = $('statLocal');
+const statDbPairs = $('statDbPairs');
+const statDbTickers = $('statDbTickers');
+const timeFilter = $('timeFilter');
+const showTopBtn = $('showTopBtn');
+const messageEl = $('message');
+const resultsDiv = $('results');
+const resultsMeta = $('resultsMeta');
+const resultsContent = $('resultsContent');
+const resultsPlaceholder = $('resultsPlaceholder');
+const autoScrollBtn = $('autoScrollBtn');
+const autoScrollIcon = $('autoScrollIcon');
+const autoScrollLabel = $('autoScrollLabel');
+const scrollStatus = $('scrollStatus');
+const scrollStatusText = $('scrollStatusText');
+const tursoUrlInput = $('tursoUrl');
+const tursoTokenInput = $('tursoToken');
+const saveTursoBtn = $('saveTursoBtn');
+const toggleTursoBtn = $('toggleTursoBtn');
+const tursoSection = $('tursoSection');
+const tursoStatus = $('tursoStatus');
+const clearTursoBtn = $('clearTursoBtn');
+const uploadBtn = $('uploadBtn');
+const modeTickers = $('modeTickers');
+const modeAuthors = $('modeAuthors');
+const includeCrypto = $('includeCrypto');
 
-// Show message
-function showMessage(text, type = 'info') {
-    messageEl.textContent = text;
-    messageEl.className = `status ${type}`;
-    setTimeout(() => {
-        messageEl.textContent = '';
-        messageEl.className = '';
-    }, 3000);
-}
+const ICON_PLAY = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z"/></svg>';
+const ICON_STOP = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
 
 // Simple logging function
 function log(message) {
     console.log(message);
 }
 
-// Parse CSV content and return array of {ticker, url, timestamp} objects
-function parseCSV(csvText) {
-    const lines = csvText.trim().split('\n');
-    const pairs = [];
-
-    log(`CSV parsing - total lines: ${lines.length}`);
-
-    // Skip header line
-    for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        
-        if (!line) {
-            continue;
-        }
-
-        // Parse CSV line - split by comma but handle URLs with commas
-        const parts = line.split(',');
-
-        if (parts.length >= 2) {
-            const ticker = parts[0].replace(/^\$/, '').trim().toUpperCase();
-            const url = parts[1].trim().replace(/^["']|["']$/g, '');
-            const timestamp = parts.length >= 3 ? parts[2].trim() : new Date().toISOString();
-
-            if (ticker && url) {
-                pairs.push({ ticker, url, timestamp });
-            }
-        }
-    }
-
-    log(`Total pairs parsed: ${pairs.length}`);
-    return pairs;
+// Toast message
+let toastTimer = null;
+function showMessage(text, type = 'info') {
+    messageEl.textContent = text;
+    messageEl.className = `${type} show`;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+        messageEl.className = type;
+    }, 3000);
 }
 
-// Function to process CSV data
-async function processCsvData(csvText) {
-    try {
-        log(`Processing CSV data, length: ${csvText.length}`);
-
-        const newPairs = parseCSV(csvText);
-
-        if (newPairs.length === 0) {
-            showMessage('No valid pairs found in CSV', 'error');
-            return;
-        }
-
-        // Get existing pairs and merge
-        const result = await browserAPI.storage.local.get('tickerPairs');
-        const existingPairs = result.tickerPairs || {};
-        let addedCount = 0;
-
-        newPairs.forEach(pair => {
-            const key = `${pair.ticker}|${pair.url}`;
-            if (!existingPairs[key]) {
-                existingPairs[key] = pair;
-                addedCount++;
-            }
-        });
-
-        // Save merged data
-        await browserAPI.storage.local.set({ tickerPairs: existingPairs });
-
-        // Notify background script to reload data
-        try {
-            await browserAPI.runtime.sendMessage({ type: 'RELOAD_DATA' });
-        } catch (msgErr) {
-            log(`Failed to send RELOAD_DATA message: ${msgErr.message}`);
-        }
-
-        showMessage(`Added ${addedCount} new pairs (${newPairs.length - addedCount} duplicates skipped)`, 'success');
-        updatePairCount();
-        csvTextArea.value = ''; // Clear text area
-
-    } catch (err) {
-        log(`Error during CSV processing: ${err.message}`);
-        showMessage('Error: ' + err.message, 'error');
-    }
+function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// Load CSV button click handler
-loadCsvBtn.addEventListener('click', async () => {
-    const csvText = csvTextArea.value.trim();
-    if (!csvText) {
-        showMessage('Please enter CSV data', 'error');
-        return;
-    }
-    
-    showMessage('Loading CSV...', 'info');
-    await processCsvData(csvText);
-});
-
-// File input handler
-csvFileInput.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-        showMessage('Please select a CSV file', 'error');
-        return;
-    }
-
-    log(`File selected: ${file.name}, Size: ${file.size}`);
-    showMessage('Loading CSV...', 'info');
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        const csvText = e.target.result;
-        await processCsvData(csvText);
-        // Reset file input
-        csvFileInput.value = '';
-    };
-
-    reader.onerror = (err) => {
-        log(`FileReader error: ${err.message}`);
-        showMessage('Error reading file', 'error');
-        csvFileInput.value = '';
-    };
-
-    reader.readAsText(file);
-});
-
-// Drag and drop functionality
-csvTextArea.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    csvTextArea.style.borderColor = '#1da1f2';
-});
-
-csvTextArea.addEventListener('dragleave', (e) => {
-    e.preventDefault();
-    csvTextArea.style.borderColor = '#ccc';
-});
-
-csvTextArea.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    csvTextArea.style.borderColor = '#ccc';
-
-    const files = e.dataTransfer.files;
-    if (files.length === 0) return;
-
-    const file = files[0];
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-        showMessage('Please drop a CSV file', 'error');
-        return;
-    }
-
-    log(`File dropped: ${file.name}, Size: ${file.size}`);
-    showMessage('Loading CSV...', 'info');
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        const csvText = e.target.result;
-        await processCsvData(csvText);
-    };
-
-    reader.onerror = (err) => {
-        log(`FileReader error: ${err.message}`);
-        showMessage('Error reading file', 'error');
-    };
-
-    reader.readAsText(file);
-});
-
-// Toggle CSV section visibility
-toggleCsvBtn.addEventListener('click', () => {
-    if (csvSection.style.display === 'none') {
-        csvSection.style.display = 'block';
-        toggleCsvBtn.textContent = '📁 Hide CSV Data';
-    } else {
-        csvSection.style.display = 'none';
-        toggleCsvBtn.textContent = '📁 Load CSV Data';
-    }
-});
-
-// Fetch the bundled CSV file and process it into storage
-async function fetchAndLoadExtensionCSV() {
-    const response = await fetch('twitter_tickers_cache.csv');
-    if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const csvText = await response.text();
-    await processCsvData(csvText);
+function timeAgo(date) {
+    const secs = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
+    if (secs < 60) return 'just now';
+    const mins = Math.round(secs / 60);
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.round(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.round(hours / 24)}d ago`;
 }
 
-// Auto-load existing CSV file only once on extension start
-let hasAutoLoaded = false;
-async function autoLoadExistingCSV() {
-    if (hasAutoLoaded) return;
-    try {
-        await fetchAndLoadExtensionCSV();
-        hasAutoLoaded = true;
-    } catch (err) {
-        log(`Auto-load failed: ${err.message}`);
-        // Silently fail - user can manually load if needed
-    }
+// Pairs waiting to be uploaded (the extension's local outbox)
+function updatePairCount() {
+    browserAPI.runtime.sendMessage({ type: 'GET_OUTBOX_COUNT' }).then(count => {
+        statLocal.textContent = Number(count).toLocaleString();
+        statLocal.classList.toggle('muted', count === 0);
+    }).catch(() => {});
 }
 
-// Load existing CSV file button
-loadExistingBtn.addEventListener('click', async () => {
-    try {
-        showMessage('Loading existing CSV file...', 'info');
-        await fetchAndLoadExtensionCSV();
-    } catch (err) {
-        log(`Error loading existing CSV: ${err.message}`);
-        showMessage(`Error loading CSV file: ${err.message}`, 'error');
-    }
-});
-
-// Show top mentions with time filtering
-showTopBtn.addEventListener('click', async () => {
-    try {
-        showMessage('Running analysis...', 'info');
-
-        const result = await browserAPI.storage.local.get('tickerPairs');
-        if (!result.tickerPairs) {
-            showMessage('No data to analyze', 'error');
-            return;
-        }
-
-        // Get time filter value
-        const daysBack = parseInt(timeFilter.value);
-        const cutoffDate = daysBack > 0 ? new Date(Date.now() - (daysBack * 24 * 60 * 60 * 1000)) : null;
-
-        // Count tickers and track timestamps with time filtering
-        const tickerData = {};
-        Object.values(result.tickerPairs).forEach(pair => {
-            const ticker = pair.ticker.toUpperCase();
-            
-            // Apply time filter
-            if (cutoffDate && pair.timestamp) {
-                const pairDate = new Date(pair.timestamp);
-                if (pairDate < cutoffDate) {
-                    return; // Skip this pair if it's older than the filter
-                }
-            }
-            
-            if (!tickerData[ticker]) {
-                tickerData[ticker] = {
-                    count: 0,
-                    timestamps: []
-                };
-            }
-            tickerData[ticker].count++;
-            if (pair.timestamp) {
-                tickerData[ticker].timestamps.push(new Date(pair.timestamp));
-            }
-        });
-
-        // Sort by count
-        const sorted = Object.entries(tickerData)
-            .sort((a, b) => b[1].count - a[1].count)
-            .slice(0, 10);
-
-        // Display results
-        if (sorted.length === 0) {
-            resultsContent.textContent = 'No tickers found for the selected time range.';
-        } else {
-            const timeRangeText = daysBack === 0 ? 'All time' : `Last ${daysBack} day${daysBack > 1 ? 's' : ''}`;
-            resultsContent.innerHTML = `<div style="margin-bottom: 10px; font-weight: bold; color: #00ffff;">📊 Top Mentions (${timeRangeText})</div>` +
-                sorted.map(([ticker, data]) => {
-                    const latestTime = data.timestamps.length > 0
-                        ? new Date(Math.max(...data.timestamps))
-                        : null;
-                    const timeStr = latestTime
-                        ? `<span class="mention-time">Latest: ${latestTime.toLocaleString()}</span>`
-                        : '';
-                    return `<div class="mention-item">
-                        <span class="ticker-name">$${ticker}</span>
-                        <span class="mention-count">(${data.count} mentions)</span>
-                        ${timeStr}
-                    </div>`;
-                }).join('');
-        }
-
-        resultsDiv.style.display = 'block';
-
-    } catch (err) {
-        showMessage('Error: ' + err.message, 'error');
-    }
-});
-
-// Export CSV only
-exportBtn.addEventListener('click', () => {
-    browserAPI.runtime.sendMessage({ type: 'EXPORT_NOW' }).then(() => {
-        showMessage('CSV exported to Downloads', 'success');
-    }).catch(() => {
-        showMessage('Export failed', 'error');
+// Pull counts (numbers only, not the data) from Turso
+function updateDbCount() {
+    browserAPI.runtime.sendMessage({ type: 'GET_DB_COUNTS' }).then(res => {
+        statDbPairs.textContent = res.pairs.toLocaleString();
+        statDbTickers.textContent = res.tickers.toLocaleString();
+        statDbPairs.classList.remove('muted');
+        statDbTickers.classList.remove('muted');
+    }).catch(err => {
+        statDbPairs.textContent = '–';
+        statDbTickers.textContent = '–';
+        statDbPairs.classList.add('muted');
+        statDbTickers.classList.add('muted');
+        log(`DB count failed: ${err.message}`);
     });
+}
+
+function setConnection(state, text) {
+    tursoStatus.className = `conn ${state}`;
+    tursoStatus.lastElementChild.textContent = text;
+}
+
+function updateTursoStatus() {
+    browserAPI.storage.local.get('tursoConfig').then(result => {
+        if (result.tursoConfig) {
+            const host = result.tursoConfig.url.replace(/^\w+:\/\//, '');
+            setConnection('ok', host);
+            if (!tursoUrlInput.value) tursoUrlInput.value = result.tursoConfig.url;
+        } else {
+            browserAPI.runtime.sendMessage({ type: 'GET_TURSO_FILE_HOST' }).then(host => {
+                if (host) setConnection('ok', `${host} (turso-config.js)`);
+                else setConnection('', 'Not configured');
+            }).catch(() => setConnection('', 'Not configured'));
+        }
+    });
+}
+
+async function saveTursoCredentials(url, authToken) {
+    saveTursoBtn.disabled = true;
+    try {
+        showMessage('Connecting to Turso...', 'info');
+        const counts = await browserAPI.runtime.sendMessage({
+            type: 'SAVE_TURSO_CONFIG',
+            config: { url, authToken }
+        });
+        showMessage(`Connected. Database has ${counts.pairs.toLocaleString()} pairs`, 'success');
+        tursoTokenInput.value = '';
+        updateTursoStatus();
+        updateDbCount();
+    } catch (err) {
+        log(`Saving Turso credentials failed: ${err.message}`);
+        setConnection('bad', 'Connection failed');
+        showMessage('Error: ' + err.message, 'error');
+    } finally {
+        saveTursoBtn.disabled = false;
+    }
+}
+
+saveTursoBtn.addEventListener('click', () => {
+    const url = tursoUrlInput.value.trim();
+    const authToken = tursoTokenInput.value.trim();
+    if (!url || !authToken) {
+        showMessage('Enter both the database URL and the auth token', 'error');
+        return;
+    }
+    saveTursoCredentials(url, authToken);
 });
 
-// Clear all data
-clearBtn.addEventListener('click', () => {
-    if (confirm('Are you sure you want to clear all stored ticker pairs?')) {
-        browserAPI.storage.local.remove('tickerPairs').then(() => {
-            browserAPI.runtime.sendMessage({ type: 'RELOAD_DATA' });
-            showMessage('All data cleared', 'success');
-            updatePairCount();
+toggleTursoBtn.addEventListener('click', () => {
+    const open = tursoSection.hidden;
+    tursoSection.hidden = !open;
+    toggleTursoBtn.setAttribute('aria-expanded', String(open));
+});
+
+clearTursoBtn.addEventListener('click', () => {
+    if (confirm('Remove the saved Turso credentials?')) {
+        browserAPI.storage.local.remove('tursoConfig').then(() => {
+            tursoUrlInput.value = '';
+            tursoTokenInput.value = '';
+            showMessage('Credentials removed', 'success');
+            updateTursoStatus();
+            updateDbCount();
         });
     }
+});
+
+// Ranking mode: tickers or authors (both queried from Turso)
+let rankMode = 'tickers';
+
+function setRankMode(mode) {
+    rankMode = mode;
+    modeTickers.classList.toggle('active', mode === 'tickers');
+    modeAuthors.classList.toggle('active', mode === 'authors');
+    modeTickers.setAttribute('aria-pressed', String(mode === 'tickers'));
+    modeAuthors.setAttribute('aria-pressed', String(mode === 'authors'));
+}
+modeTickers.addEventListener('click', () => setRankMode('tickers'));
+modeAuthors.addEventListener('click', () => setRankMode('authors'));
+
+function plural(n, word) {
+    return `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
+}
+
+showTopBtn.addEventListener('click', async () => {
+    showTopBtn.disabled = true;
+    try {
+        const daysBack = parseInt(timeFilter.value);
+        const isAuthors = rankMode === 'authors';
+        const rows = await browserAPI.runtime.sendMessage({
+            type: isAuthors ? 'GET_TOP_AUTHORS' : 'GET_TOP_MENTIONS',
+            days: daysBack,
+            includeCrypto: includeCrypto.checked
+        });
+
+        resultsPlaceholder.hidden = true;
+        resultsDiv.hidden = false;
+
+        if (rows.length === 0) {
+            resultsMeta.textContent = '';
+            resultsContent.innerHTML = '<div class="empty">Nothing found for the selected time range.</div>';
+            return;
+        }
+
+        const timeRangeText = daysBack === 0 ? 'All time' : `Last ${daysBack} day${daysBack > 1 ? 's' : ''}`;
+        resultsMeta.textContent = `${timeRangeText} \u00b7 top ${rows.length} ${isAuthors ? 'authors' : 'tickers'}${includeCrypto.checked ? '' : ' \u00b7 crypto excluded'}`;
+
+        const maxCount = rows[0].count;
+        resultsContent.innerHTML = rows.map((row, i) => {
+            const latest = row.latest ? new Date(row.latest) : null;
+            const latestStr = latest && !isNaN(latest) ? `Latest ${timeAgo(latest)}` : '';
+            const detail = isAuthors ? plural(row.tickers, 'ticker') : plural(row.authors, 'author');
+            const title = isAuthors ? `@${row.author}` : `$${row.ticker}`;
+            const unit = isAuthors ? 'posts' : 'mentions';
+            const width = Math.max(4, Math.round((row.count / maxCount) * 100));
+            return `<div class="mention">
+                <div class="mention-bar" style="width: ${width}%"></div>
+                <div class="rank num">${i + 1}</div>
+                <div class="m-main">
+                    <span class="ticker-name">${escapeHtml(title)}</span>
+                    <span class="mention-time" title="${latest ? escapeHtml(latest.toLocaleString()) : ''}">${escapeHtml(detail)}${latestStr ? ' \u00b7 ' + latestStr : ''}</span>
+                </div>
+                <div class="mention-count num">${row.count.toLocaleString()}<small>${unit}</small></div>
+            </div>`;
+        }).join('');
+
+    } catch (err) {
+        showMessage('Error: ' + err.message, 'error');
+    } finally {
+        showTopBtn.disabled = false;
+    }
+});
+
+// Upload everything still pending to Turso
+uploadBtn.addEventListener('click', () => {
+    uploadBtn.disabled = true;
+    showMessage('Syncing with Turso...', 'info');
+    browserAPI.runtime.sendMessage({ type: 'SYNC_NOW' }).then(res => {
+        showMessage(res.count === 0 ? 'Nothing to sync, all up to date' : `Synced ${res.count.toLocaleString()} pairs to Turso`, 'success');
+        updatePairCount();
+        updateDbCount();
+    }).catch(err => {
+        showMessage('Sync failed: ' + err.message, 'error');
+    }).finally(() => {
+        uploadBtn.disabled = false;
+    });
 });
 
 // Auto-scroll button functionality
 let isAutoScrollActive = false;
 
-// Update auto-scroll button and status indicator to reflect current state
+// Update auto-scroll button and status pill to reflect current state
 function setAutoScrollState(isScrolling) {
     isAutoScrollActive = isScrolling;
-    if (isScrolling) {
-        autoScrollBtn.textContent = 'Stop Auto-Scroll';
-        autoScrollBtn.classList.remove('primary');
-        autoScrollBtn.classList.add('danger');
-        scrollStatus.textContent = 'Auto-scrolling...';
-        scrollStatus.style.display = 'block';
-        scrollStatus.className = 'status success';
-    } else {
-        autoScrollBtn.textContent = 'Start Auto-Scroll';
-        autoScrollBtn.classList.remove('danger');
-        autoScrollBtn.classList.add('primary');
-        scrollStatus.style.display = 'none';
-    }
+    autoScrollBtn.classList.toggle('running', isScrolling);
+    autoScrollIcon.innerHTML = isScrolling ? ICON_STOP : ICON_PLAY;
+    autoScrollLabel.textContent = isScrolling ? 'Stop Auto-Scroll' : 'Start Auto-Scroll';
+    scrollStatus.classList.toggle('running', isScrolling);
+    scrollStatusText.textContent = isScrolling ? 'Scrolling' : 'Idle';
 }
 
 async function updateAutoScrollButton() {
@@ -419,9 +302,16 @@ browserAPI.runtime.onMessage.addListener((message) => {
     }
 });
 
-// Initial load
-updatePairCount();
-updateAutoScrollButton();
+// Keep the unsynced count live while the popup is open
+browserAPI.storage.onChanged.addListener(changes => {
+    if (changes.outbox) {
+        updatePairCount();
+    }
+});
 
-// Auto-load existing CSV data when popup opens
-autoLoadExistingCSV();
+// Initial load
+setAutoScrollState(false);
+updatePairCount();
+updateDbCount();
+updateTursoStatus();
+updateAutoScrollButton();

@@ -1,0 +1,13 @@
+{
+  "name": "x-stocks-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright scraper: extracts $TICKER + post URL pairs from the X 'Following' timeline",
+  "main": "scraper.js",
+  "scripts": {
+    "start": "node scraper.js"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}

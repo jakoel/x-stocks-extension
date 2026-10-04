@@ -1,331 +1,540 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ticker Extractor</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        
+        :root {
+            --bg: #090c11;
+            --surface: #10141b;
+            --surface-2: #161b24;
+            --border: #212835;
+            --border-strong: #2e3748;
+            --text: #e8ebf1;
+            --muted: #8a93a6;
+            --accent: #4f8cff;
+            --accent-2: #7c5cff;
+            --up: #2dd4a0;
+            --down: #f4616d;
+            --warn: #f5b84b;
+            --radius: 14px;
+            --radius-sm: 10px;
+        }
+
+        * { box-sizing: border-box; }
+
         body {
-            width: 320px;
-            padding: 24px;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #0f0f0f;
-            color: #e5e5e5;
+            width: 380px;
             margin: 0;
+            padding: 16px;
+            background:
+                radial-gradient(420px 180px at 100% -20px, rgba(79, 140, 255, 0.14), transparent 70%),
+                radial-gradient(360px 160px at -10% 0, rgba(124, 92, 255, 0.10), transparent 70%),
+                var(--bg);
+            color: var(--text);
+            font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+            font-size: 13px;
+            line-height: 1.45;
+            -webkit-font-smoothing: antialiased;
             overflow-x: hidden;
         }
-        
-        h3 {
-            margin: 0 0 24px 0;
-            font-size: 18px;
+
+        .num { font-variant-numeric: tabular-nums; }
+
+        /* ---------- Header ---------- */
+        header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .logo {
+            width: 38px;
+            height: 38px;
+            border-radius: 11px;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            box-shadow: 0 6px 18px rgba(79, 140, 255, 0.35);
+            flex: none;
+        }
+
+        .titles { flex: 1; min-width: 0; }
+        h1 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
+        .subtitle { margin: 1px 0 0; color: var(--muted); font-size: 11.5px; }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 5px 10px;
+            border-radius: 999px;
+            font-size: 11.5px;
             font-weight: 600;
-            color: #ffffff;
-            letter-spacing: -0.02em;
+            color: var(--muted);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            white-space: nowrap;
         }
-        
-        .section {
-            margin-bottom: 20px;
-            padding: 16px;
-            background: #1a1a1a;
-            border: 1px solid #2a2a2a;
-            border-radius: 8px;
+
+        .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--muted);
+            flex: none;
         }
-        
-        button {
-            width: 100%;
-            padding: 8px 14px;
-            margin: 5px 0;
-            cursor: pointer;
-            background: #2a2a2a;
-            color: #e5e5e5;
-            border: 1px solid #3a3a3a;
-            border-radius: 4px;
-            font-size: 12px;
-            font-family: 'Inter', sans-serif;
-            font-weight: 600;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-            letter-spacing: 0.02em;
+
+        .pill.running { color: var(--up); border-color: rgba(45, 212, 160, 0.35); background: rgba(45, 212, 160, 0.08); }
+        .pill.running .dot { background: var(--up); animation: pulse 1.4s ease-in-out infinite; }
+
+        @keyframes pulse {
+            0%   { box-shadow: 0 0 0 0 rgba(45, 212, 160, 0.55); }
+            70%  { box-shadow: 0 0 0 7px rgba(45, 212, 160, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(45, 212, 160, 0); }
         }
-        
-        button::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-            transition: left 0.5s ease;
+
+        /* ---------- Cards ---------- */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 14px;
+            margin-bottom: 12px;
         }
-        
-        button:hover::before {
-            left: 100%;
+
+        .card-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 12px;
         }
-        
-        button::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: radial-gradient(circle at center, rgba(255, 255, 255, 0.1), transparent 70%);
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-        
-        button:hover::after {
-            opacity: 1;
-        }
-        
-        button:hover {
-            background: #333333;
-            border-color: #4a4a4a;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-        }
-        
-        button:active {
-            transform: translateY(0);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        }
-        
-        button.primary {
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-            border-color: #2563eb;
-            color: #ffffff;
-            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
-        }
-        
-        button.primary:hover {
-            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-            border-color: #1d4ed8;
-            box-shadow: 0 4px 16px rgba(59, 130, 246, 0.4);
-        }
-        
-        button.primary::after {
-            background: radial-gradient(circle at center, rgba(255, 255, 255, 0.2), transparent 70%);
-        }
-        
-        button.secondary {
-            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-            border-color: #4f46e5;
-            color: #ffffff;
-            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
-        }
-        
-        button.secondary:hover {
-            background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
-            border-color: #4338ca;
-            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
-        }
-        
-        button.secondary::after {
-            background: radial-gradient(circle at center, rgba(255, 255, 255, 0.2), transparent 70%);
-        }
-        
-        button.success {
-            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-            border-color: #059669;
-            color: #ffffff;
-            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
-        }
-        
-        button.success:hover {
-            background: linear-gradient(135deg, #059669 0%, #047857 100%);
-            border-color: #047857;
-            box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
-        }
-        
-        button.success::after {
-            background: radial-gradient(circle at center, rgba(255, 255, 255, 0.2), transparent 70%);
-        }
-        
-        button.danger {
-            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-            border-color: #dc2626;
-            color: #ffffff;
-            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
-        }
-        
-        button.danger:hover {
-            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-            border-color: #b91c1c;
-            box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
-        }
-        
-        button.danger::after {
-            background: radial-gradient(circle at center, rgba(255, 255, 255, 0.2), transparent 70%);
-        }
-        
-        .mention-item {
-            padding: 12px;
-            margin: 8px 0;
-            background: #1a1a1a;
-            border: 1px solid #2a2a2a;
-            border-radius: 6px;
-            transition: all 0.2s ease;
-        }
-        
-        .mention-item:hover {
-            background: #222222;
-            border-color: #3a3a3a;
-        }
-        
-        .ticker-name {
-            font-weight: 600;
-            color: #ffffff;
-            font-size: 14px;
-        }
-        
-        .mention-count {
-            color: #3b82f6;
-            font-weight: 600;
-        }
-        
-        .mention-time {
-            color: #888888;
+
+        .card-title {
+            margin: 0;
             font-size: 11px;
-            margin-left: 8px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            white-space: nowrap;
         }
-        
-        textarea, select {
+
+        /* ---------- Buttons ---------- */
+        button {
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 40px;
+            padding: 0 14px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-strong);
+            background: var(--surface-2);
+            cursor: pointer;
+            transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        button:hover { background: #1c2230; border-color: #3a4560; }
+        button:active { transform: scale(0.98); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        :focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        button svg { flex: none; }
+
+        .btn-block { width: 100%; }
+
+        .btn-hero {
             width: 100%;
-            padding: 10px;
-            margin: 8px 0;
-            background: #1a1a1a;
-            border: 1px solid #2a2a2a;
-            border-radius: 6px;
-            color: #e5e5e5;
-            font-family: 'Inter', sans-serif;
-            font-size: 13px;
-            transition: all 0.2s ease;
-            box-sizing: border-box;
+            min-height: 48px;
+            font-size: 14.5px;
+            border: none;
+            color: #fff;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            box-shadow: 0 8px 22px rgba(79, 140, 255, 0.32);
         }
-        
-        textarea:focus, select:focus {
-            border-color: #3b82f6;
+        .btn-hero:hover { background: linear-gradient(135deg, #639aff, #8c70ff); box-shadow: 0 10px 26px rgba(79, 140, 255, 0.42); }
+        .btn-hero.running {
+            background: linear-gradient(135deg, #f4616d, #e0408f);
+            box-shadow: 0 8px 22px rgba(244, 97, 109, 0.30);
+        }
+        .btn-hero.running:hover { background: linear-gradient(135deg, #f77882, #e857a0); }
+
+        .btn-sm { min-height: 34px; padding: 0 12px; font-size: 12.5px; }
+
+        .btn-primary-soft {
+            color: #cfe0ff;
+            background: rgba(79, 140, 255, 0.14);
+            border-color: rgba(79, 140, 255, 0.35);
+        }
+        .btn-primary-soft:hover { background: rgba(79, 140, 255, 0.22); border-color: rgba(79, 140, 255, 0.55); }
+
+        .btn-danger-ghost {
+            color: var(--down);
+            background: transparent;
+            border-color: rgba(244, 97, 109, 0.35);
+        }
+        .btn-danger-ghost:hover { background: rgba(244, 97, 109, 0.10); border-color: rgba(244, 97, 109, 0.6); }
+
+        .hint { margin: 10px 2px 0; color: var(--muted); font-size: 11.5px; text-align: center; }
+
+        /* ---------- Stats ---------- */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .stat {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 11px 12px;
+            min-width: 0;
+        }
+
+        .stat-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--muted);
+            font-size: 10.5px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            white-space: nowrap;
+        }
+
+        .stat-value {
+            margin-top: 4px;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .stat-value.muted { color: var(--muted); }
+
+        /* ---------- Form controls ---------- */
+        select, input[type="text"], input[type="password"] {
+            width: 100%;
+            height: 38px;
+            padding: 0 12px;
+            color: var(--text);
+            background: var(--bg);
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-size: 13px;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        select { width: auto; cursor: pointer; }
+
+        select:focus, input:focus {
             outline: none;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.18);
         }
-        
+
+        input::placeholder { color: #566074; }
+
         label {
-            font-size: 12px;
-            color: #888888;
             display: block;
-            margin-bottom: 6px;
-            font-weight: 500;
-        }
-        
-        .status {
-            padding: 10px 12px;
-            margin: 10px 0;
-            border-radius: 6px;
+            margin: 0 0 6px;
+            color: var(--muted);
             font-size: 12px;
-            text-align: center;
             font-weight: 500;
         }
-        
-        .info {
-            background: rgba(59, 130, 246, 0.1);
-            color: #60a5fa;
-            border: 1px solid rgba(59, 130, 246, 0.2);
+
+        .field + .field { margin-top: 12px; }
+
+        /* ---------- Database card ---------- */
+        .conn {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            max-width: 100%;
+            min-width: 0;
+            font-size: 12px;
+            color: var(--muted);
         }
-        
-        .success {
-            background: rgba(16, 185, 129, 0.1);
-            color: #34d399;
-            border: 1px solid rgba(16, 185, 129, 0.2);
+        .conn span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .conn.ok { color: var(--up); }
+        .conn.ok .dot { background: var(--up); }
+        .conn.bad { color: var(--down); }
+        .conn.bad .dot { background: var(--down); }
+
+        .row { display: flex; gap: 8px; align-items: center; }
+        .row > .grow { flex: 1; min-width: 0; }
+
+        .collapse-toggle {
+            width: 100%;
+            justify-content: space-between;
+            margin-top: 12px;
+            background: transparent;
+            min-height: 38px;
+            font-weight: 500;
+            color: var(--muted);
         }
-        
-        .error {
-            background: rgba(239, 68, 68, 0.1);
-            color: #f87171;
-            border: 1px solid rgba(239, 68, 68, 0.2);
+        .collapse-toggle .chev { transition: transform 0.2s ease; }
+        .collapse-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
+        .collapse-toggle[aria-expanded="true"] { color: var(--text); }
+
+        #tursoSection { padding-top: 14px; }
+        #tursoSection[hidden] { display: none; }
+        .form-actions { display: flex; gap: 8px; margin-top: 14px; }
+        .form-actions .btn-save { flex: 1; }
+
+        /* ---------- Ranking toolbar ---------- */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 12px;
         }
-        
-        #results {
-            background: #1a1a1a;
-            border: 1px solid #2a2a2a;
+
+        .seg {
+            display: inline-flex;
+            padding: 3px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+        }
+
+        .seg-btn {
+            min-height: 28px;
+            padding: 0 14px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--muted);
+            background: transparent;
+            border: none;
             border-radius: 8px;
-            padding: 16px;
         }
-        
+        .seg-btn:hover { background: transparent; color: var(--text); }
+        .seg-btn.active { color: #fff; background: var(--surface-2); box-shadow: 0 1px 0 var(--border-strong); }
+
+        .check {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            margin: 0;
+            cursor: pointer;
+            user-select: none;
+        }
+        .check input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+
+        /* ---------- Results ---------- */
+        #results[hidden] { display: none; }
+
+        .results-meta {
+            color: var(--muted);
+            font-size: 11.5px;
+            margin: -4px 0 10px;
+        }
+
         #resultsContent {
-            max-height: 300px;
+            max-height: 290px;
             overflow-y: auto;
-            font-size: 13px;
-            background: #0f0f0f;
-            padding: 12px;
-            border-radius: 6px;
+            margin: 0 -4px;
+            padding: 0 4px;
         }
-        
-        /* Scrollbar styling */
-        ::-webkit-scrollbar {
-            width: 6px;
+
+        .empty {
+            padding: 18px 8px;
+            text-align: center;
+            color: var(--muted);
         }
-        
-        ::-webkit-scrollbar-track {
-            background: #1a1a1a;
-            border-radius: 3px;
+
+        .mention {
+            position: relative;
+            display: grid;
+            grid-template-columns: 22px 1fr auto;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 10px;
+            margin-bottom: 6px;
+            border-radius: var(--radius-sm);
+            background: var(--surface-2);
+            border: 1px solid transparent;
+            overflow: hidden;
+            transition: border-color 0.15s ease;
         }
-        
-        ::-webkit-scrollbar-thumb {
-            background: #3a3a3a;
-            border-radius: 3px;
+        .mention:hover { border-color: var(--border-strong); }
+
+        .mention-bar {
+            position: absolute;
+            inset: 0 auto 0 0;
+            background: linear-gradient(90deg, rgba(79, 140, 255, 0.22), rgba(79, 140, 255, 0.04));
+            pointer-events: none;
         }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: #4a4a4a;
+
+        .rank { position: relative; color: var(--muted); font-size: 11.5px; font-weight: 600; text-align: center; }
+        .mention:nth-child(-n+3) .rank { color: var(--warn); }
+
+        .m-main { position: relative; min-width: 0; }
+        .ticker-name { font-weight: 700; font-size: 14px; letter-spacing: 0.01em; }
+        .mention-time { display: block; color: var(--muted); font-size: 11px; }
+        .mention-count { position: relative; text-align: right; font-weight: 700; color: #cfe0ff; }
+        .mention-count small { display: block; color: var(--muted); font-weight: 500; font-size: 10.5px; }
+
+        /* ---------- Toast ---------- */
+        #message {
+            position: fixed;
+            left: 16px;
+            right: 16px;
+            bottom: 14px;
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            font-size: 12.5px;
+            font-weight: 600;
+            background: var(--surface-2);
+            border: 1px solid var(--border-strong);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            transform: translateY(8px);
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+        #message.show { opacity: 1; transform: translateY(0); }
+        #message.success { color: var(--up); border-color: rgba(45, 212, 160, 0.4); }
+        #message.error { color: var(--down); border-color: rgba(244, 97, 109, 0.45); }
+        #message.info { color: #9cc0ff; border-color: rgba(79, 140, 255, 0.4); }
+
+        /* ---------- Scrollbar ---------- */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #2a3140; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3a4458; }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation: none !important; transition: none !important; }
         }
     </style>
 </head>
 <body>
-    <h3>Twitter Ticker Extractor</h3>
-
-    <div class="section" style="margin-bottom: 20px;">
-        <button id="autoScrollBtn" class="primary" style="font-size: 14px; padding: 12px;">Start Auto-Scroll</button>
-        <div id="scrollStatus" class="status info" style="margin-top: 10px; display: none;">Auto-scroll ready</div>
-    </div>
-
-    <div class="status info" id="pairCount" style="margin-bottom: 20px;">Loading...</div>
-
-    <div class="section">
-        <label for="timeFilter">
-            Top Mentions Time Range:
-        </label>
-        <select id="timeFilter">
-            <option value="1">Last 24 hours</option>
-            <option value="3">Last 3 days</option>
-            <option value="7">Last 7 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="0">All time</option>
-        </select>
-        <button id="showTopBtn" class="primary" style="margin-top: 8px;">Show Top Mentions</button>
-        <button id="exportBtn">Export CSV</button>
-        <button id="clearBtn" class="danger">Clear All Data</button>
-    </div>
-
-    <div class="section">
-        <button id="toggleCsvBtn" class="secondary" style="margin-bottom: 10px;">Load CSV Data</button>
-        <div id="csvSection" style="display: none;">
-            <label for="csvText">
-                Paste CSV content or drag & drop CSV file:
-            </label>
-            <textarea id="csvText" placeholder="Paste CSV content here or drag & drop a CSV file..."
-                      style="height: 100px; font-family: 'Courier New', monospace; resize: vertical;"></textarea>
-            <button id="loadCsvBtn" class="success" style="margin-top: 5px;">Load CSV Data</button>
-            <label style="margin-top: 15px; margin-bottom: 5px;">Or select file:</label>
-            <input type="file" id="csvFileInput" accept=".csv" style="width: 100%; padding: 8px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 6px; color: #e5e5e5; font-size: 12px; cursor: pointer;">
-            <button id="loadExistingBtn" class="secondary" style="margin-top: 10px;">Load from Extension Folder</button>
+    <header>
+        <div class="logo" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/>
+            </svg>
         </div>
-    </div>
+        <div class="titles">
+            <h1>Ticker Extractor</h1>
+            <p class="subtitle">Cashtags from your X timeline</p>
+        </div>
+        <div class="pill" id="scrollStatus" role="status"><span class="dot"></span><span id="scrollStatusText">Idle</span></div>
+    </header>
 
-    <div id="message"></div>
+    <section class="card" aria-label="Auto-scroll">
+        <button id="autoScrollBtn" class="btn-hero" type="button">
+            <span id="autoScrollIcon" aria-hidden="true"></span>
+            <span id="autoScrollLabel">Start Auto-Scroll</span>
+        </button>
+        <p class="hint">Open the Following tab on x.com, then press start.</p>
+    </section>
 
-    <div id="results" style="display: none;">
-        <h3 style="margin-top: 0; margin-bottom: 16px; font-size: 16px;">Top Mentions</h3>
-        <div id="resultsContent"></div>
-    </div>
+    <section class="stats" aria-label="Statistics">
+        <div class="stat">
+            <div class="stat-label">Unsynced</div>
+            <div class="stat-value num" id="statLocal">&ndash;</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">DB pairs</div>
+            <div class="stat-value num muted" id="statDbPairs">&ndash;</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Tickers</div>
+            <div class="stat-value num muted" id="statDbTickers">&ndash;</div>
+        </div>
+    </section>
+
+    <section class="card" aria-label="Database">
+        <div class="card-head">
+            <h2 class="card-title">Database</h2>
+            <div class="conn" id="tursoStatus"><span class="dot"></span><span>Checking&hellip;</span></div>
+        </div>
+
+        <button id="uploadBtn" class="btn-block btn-primary-soft" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 12A9 9 0 0 1 18.5 5.8L21 8"/><path d="M21 3v5h-5M3 21v-5h5"/></svg>
+            Sync now
+        </button>
+
+        <button id="toggleTursoBtn" class="collapse-toggle" type="button" aria-expanded="false" aria-controls="tursoSection">
+            <span class="row">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3M17 6l3 3M14 9l2 2"/></svg>
+                Credentials
+            </span>
+            <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+
+        <div id="tursoSection" hidden>
+            <div class="field">
+                <label for="tursoUrl">Database URL</label>
+                <input type="text" id="tursoUrl" placeholder="libsql://your-db.turso.io" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="field">
+                <label for="tursoToken">Auth token</label>
+                <input type="password" id="tursoToken" placeholder="Paste auth token" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="form-actions">
+                <button id="saveTursoBtn" class="btn-save btn-primary-soft" type="button">Save &amp; test</button>
+                <button id="clearTursoBtn" class="btn-danger-ghost" type="button">Remove</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="card" aria-label="Top mentions">
+        <div class="card-head">
+            <h2 class="card-title">Top mentions</h2>
+            <div class="row">
+                <label for="timeFilter" style="position:absolute;left:-9999px">Time range</label>
+                <select id="timeFilter">
+                    <option value="1">24 hours</option>
+                    <option value="3">3 days</option>
+                    <option value="7">7 days</option>
+                    <option value="30">30 days</option>
+                    <option value="0">All time</option>
+                </select>
+                <button id="showTopBtn" class="btn-sm btn-primary-soft" type="button">Run</button>
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <div class="seg" role="group" aria-label="Rank by">
+                <button id="modeTickers" class="seg-btn active" type="button" aria-pressed="true">Tickers</button>
+                <button id="modeAuthors" class="seg-btn" type="button" aria-pressed="false">Authors</button>
+            </div>
+            <label class="check" for="includeCrypto">
+                <input type="checkbox" id="includeCrypto">
+                <span>Include crypto</span>
+            </label>
+        </div>
+
+        <div id="results" hidden>
+            <div class="results-meta" id="resultsMeta"></div>
+            <div id="resultsContent"></div>
+        </div>
+        <div class="empty" id="resultsPlaceholder">Pick a range and press Run to rank tickers or authors.</div>
+    </section>
+
+    <div id="message" role="status" aria-live="polite"></div>
 
     <script src="popup.js"></script>
 </body>

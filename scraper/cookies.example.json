@@ -1,0 +1,4 @@
+{
+  "auth_token": "value of the auth_token cookie for x.com",
+  "ct0": "value of the ct0 cookie for x.com"
+}
