@@ -35,9 +35,6 @@ const fillGapBtn = $('fillGapBtn');
 const covRange = $('covRange');
 const covSub = $('covSub');
 const deadlineHint = $('deadlineHint');
-const modeTickers = $('modeTickers');
-const modeAuthors = $('modeAuthors');
-const includeCrypto = $('includeCrypto');
 const uniquePerDay = $('uniquePerDay');
 
 const ICON_PLAY = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z"/></svg>';
@@ -216,19 +213,6 @@ clearTursoBtn.addEventListener('click', () => {
     }
 });
 
-// Ranking mode: tickers or authors (both queried from Turso)
-let rankMode = 'tickers';
-
-function setRankMode(mode) {
-    rankMode = mode;
-    modeTickers.classList.toggle('active', mode === 'tickers');
-    modeAuthors.classList.toggle('active', mode === 'authors');
-    modeTickers.setAttribute('aria-pressed', String(mode === 'tickers'));
-    modeAuthors.setAttribute('aria-pressed', String(mode === 'authors'));
-}
-modeTickers.addEventListener('click', () => setRankMode('tickers'));
-modeAuthors.addEventListener('click', () => setRankMode('authors'));
-
 function plural(n, word) {
     return `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
 }
@@ -243,11 +227,9 @@ showTopBtn.addEventListener('click', async () => {
     showTopBtn.disabled = true;
     try {
         const daysBack = parseInt(timeFilter.value);
-        const isAuthors = rankMode === 'authors';
         const rows = await browserAPI.runtime.sendMessage({
-            type: isAuthors ? 'GET_TOP_AUTHORS' : 'GET_TOP_MENTIONS',
+            type: 'GET_TOP_MENTIONS',
             days: daysBack,
-            includeCrypto: includeCrypto.checked,
             unique: uniquePerDay.checked
         });
 
@@ -261,17 +243,16 @@ showTopBtn.addEventListener('click', async () => {
         }
 
         const timeRangeText = daysBack === 0 ? 'All time' : `Last ${daysBack} day${daysBack > 1 ? 's' : ''}`;
-        resultsMeta.textContent = `${timeRangeText} \u00b7 top ${rows.length} ${isAuthors ? 'authors' : 'tickers'}${includeCrypto.checked ? '' : ' \u00b7 crypto excluded'}${uniquePerDay.checked ? ' \u00b7 one per author per day' : ''}`;
+        resultsMeta.textContent = `${timeRangeText} \u00b7 top ${rows.length} tickers${uniquePerDay.checked ? ' \u00b7 one per author per day' : ''}`;
 
         const maxCount = rows[0].count;
         resultsContent.innerHTML = rows.map((row, i) => {
             const latest = row.latest ? new Date(row.latest) : null;
             const latestStr = latest && !isNaN(latest) ? `Latest ${timeAgo(latest)}` : '';
-            const collapsed = uniquePerDay.checked && (isAuthors || row.raw > row.count);
-            const detail = (isAuthors ? plural(row.tickers, 'ticker') : plural(row.authors, 'author'))
-                + (collapsed ? ` \u00b7 ${row.raw.toLocaleString()} ${isAuthors ? 'posts' : 'raw'}` : '');
-            const title = isAuthors ? `@${row.author}` : `$${row.ticker}`;
-            const unit = isAuthors ? (uniquePerDay.checked ? 'ticker-days' : 'posts') : 'mentions';
+            const collapsed = uniquePerDay.checked && row.raw > row.count;
+            const detail = plural(row.authors, 'author') + (collapsed ? ` \u00b7 ${row.raw.toLocaleString()} raw` : '');
+            const title = `$${row.ticker}`;
+            const unit = 'mentions';
             const width = Math.max(4, Math.round((row.count / maxCount) * 100));
             return `<div class="mention">
                 <div class="mention-bar" style="width: ${width}%"></div>

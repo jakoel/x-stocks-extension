@@ -341,28 +341,7 @@
             margin-bottom: 12px;
         }
 
-        .seg {
-            display: inline-flex;
-            padding: 3px;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-sm);
-        }
-
-        .seg-btn {
-            min-height: 28px;
-            padding: 0 14px;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--muted);
-            background: transparent;
-            border: none;
-            border-radius: 8px;
-        }
-        .seg-btn:hover { background: transparent; color: var(--text); }
-        .seg-btn.active { color: #fff; background: var(--surface-2); box-shadow: 0 1px 0 var(--border-strong); }
-
-        .checks { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+        .checks { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
         .check {
             display: inline-flex;
             align-items: center;
@@ -567,18 +546,10 @@
         </div>
 
         <div class="toolbar">
-            <div class="seg" role="group" aria-label="Rank by">
-                <button id="modeTickers" class="seg-btn active" type="button" aria-pressed="true">Tickers</button>
-                <button id="modeAuthors" class="seg-btn" type="button" aria-pressed="false">Authors</button>
-            </div>
             <div class="checks">
                 <label class="check" for="uniquePerDay" title="Count each author at most once per ticker per day">
                     <input type="checkbox" id="uniquePerDay" checked>
                     <span>One per author per day</span>
-                </label>
-                <label class="check" for="includeCrypto">
-                    <input type="checkbox" id="includeCrypto">
-                    <span>Include crypto</span>
                 </label>
             </div>
         </div>
@@ -587,7 +558,7 @@
             <div class="results-meta" id="resultsMeta"></div>
             <div id="resultsContent"></div>
         </div>
-        <div class="empty" id="resultsPlaceholder">Pick a range and press Run to rank tickers or authors.</div>
+        <div class="empty" id="resultsPlaceholder">Pick a range and press Run to rank the most mentioned tickers.</div>
     </section>
 
     <div id="message" role="status" aria-live="polite"></div>

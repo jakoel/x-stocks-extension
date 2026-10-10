@@ -200,10 +200,7 @@ browserAPI.runtime.onMessage.addListener((message, sender) => {
         return loadFileConfig().then(cfg => (cfg ? cfg.url.replace(/^\w+:\/\//, '') : null));
     } else if (message.type === 'GET_TOP_MENTIONS') {
         return getTursoConfig().then(config =>
-            tursoTopMentions(config, rangeCutoff(message.days), 10, !!message.includeCrypto, message.unique !== false));
-    } else if (message.type === 'GET_TOP_AUTHORS') {
-        return getTursoConfig().then(config =>
-            tursoTopAuthors(config, rangeCutoff(message.days), 10, !!message.includeCrypto, message.unique !== false));
+            tursoTopMentions(config, rangeCutoff(message.days), 10, message.unique !== false));
     } else if (message.type === 'GET_SERVER_TIME') {
         return getTursoConfig().then(tursoServerNow);
     } else if (message.type === 'CHECK_KNOWN') {

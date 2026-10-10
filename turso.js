@@ -1,10 +1,6 @@
 // Turso (libSQL) HTTP client, shared by the extension background script and the Playwright scraper.
 // Uses the /v2/pipeline endpoint, so no SDK is needed.
 
-// Obvious crypto cashtags, excluded from rankings unless "include crypto" is on.
-// Deliberately left out: symbols that are also stock tickers (e.g. SOL, LINK, DOT).
-const TURSO_CRYPTO_TICKERS = ['BTC', 'ETH', 'XRP', 'DOGE', 'ZEC', 'BNB', 'ADA', 'SHIB', 'LTC', 'USDT', 'USDC', 'PEPE', 'TRX', 'SUI'];
-
 function tursoPipelineUrl(config) {
     return config.url.replace(/^libsql:\/\//, 'https://') + '/v2/pipeline';
 }
@@ -117,23 +113,15 @@ async function tursoCounts(config) {
 
 // WHERE clause + args shared by the ranking queries.
 // Pairs without a timestamp are always counted, like the old local analysis.
-function tursoRangeFilter(cutoffIso, includeCrypto) {
-    const conditions = [];
-    const args = [];
-    if (cutoffIso) {
-        conditions.push('(timestamp >= ? OR timestamp IS NULL)');
-        args.push({ type: 'text', value: cutoffIso });
-    }
-    if (!includeCrypto) {
-        conditions.push(`ticker NOT IN (${TURSO_CRYPTO_TICKERS.map(t => `'${t}'`).join(', ')})`);
-    }
-    return { where: conditions.length ? 'WHERE ' + conditions.join(' AND ') : '', args };
+function tursoRangeFilter(cutoffIso) {
+    if (!cutoffIso) return { where: '', args: [] };
+    return { where: 'WHERE (timestamp >= ? OR timestamp IS NULL)', args: [{ type: 'text', value: cutoffIso }] };
 }
 
 // Most mentioned tickers. unique = true (default) counts each author at most once per ticker per day
 // (UTC day); the raw number of posts is returned as well. Also returns distinct authors and latest post.
-async function tursoTopMentions(config, cutoffIso, limit = 10, includeCrypto = false, unique = true) {
-    const { where, args } = tursoRangeFilter(cutoffIso, includeCrypto);
+async function tursoTopMentions(config, cutoffIso, limit = 10, unique = true) {
+    const { where, args } = tursoRangeFilter(cutoffIso);
     args.push({ type: 'integer', value: String(limit) });
     const results = await tursoExecute(config, [{
         sql: `SELECT ticker, COUNT(*) AS raw,
@@ -149,29 +137,6 @@ async function tursoTopMentions(config, cutoffIso, limit = 10, includeCrypto = f
         raw: Number(tursoVal(raw)),
         unique: Number(tursoVal(uniq)),
         authors: Number(tursoVal(authors)),
-        latest: tursoVal(latest)
-    }));
-}
-
-// Most active authors. unique = true counts distinct (ticker, day) pairs per author, so posting the same
-// ticker repeatedly on one day counts once; otherwise distinct posts. posts is always the raw post count.
-async function tursoTopAuthors(config, cutoffIso, limit = 10, includeCrypto = false, unique = true) {
-    const { where, args } = tursoRangeFilter(cutoffIso, includeCrypto);
-    args.push({ type: 'integer', value: String(limit) });
-    const results = await tursoExecute(config, [{
-        sql: `SELECT author, COUNT(DISTINCT url) AS posts,
-                     COUNT(DISTINCT ticker || '|' || COALESCE(substr(timestamp, 1, 10), '')) AS uniq,
-                     COUNT(DISTINCT ticker) AS tickers, MAX(timestamp) AS latest
-              FROM ticker_posts ${where ? where + ' AND author IS NOT NULL' : 'WHERE author IS NOT NULL'}
-              GROUP BY author ORDER BY ${unique ? 'uniq' : 'posts'} DESC, posts DESC, author LIMIT ?`,
-        args
-    }]);
-    return results[0].response.result.rows.map(([author, posts, uniq, tickers, latest]) => ({
-        author: tursoVal(author),
-        count: Number(tursoVal(unique ? uniq : posts)),
-        raw: Number(tursoVal(posts)),
-        unique: Number(tursoVal(uniq)),
-        tickers: Number(tursoVal(tickers)),
         latest: tursoVal(latest)
     }));
 }
@@ -314,7 +279,7 @@ async function tursoCoverage(config, floorDay = null) {
 
 if (typeof module !== 'undefined') {
     module.exports = {
-        TURSO_CRYPTO_TICKERS, tursoExecute, tursoAuthorFromUrl, tursoEnsureSchema, tursoEnsureTable,
-        tursoUploadPairs, tursoCounts, tursoTopMentions, tursoTopAuthors, tursoDailyCounts, tursoCoverage, tursoCoverageFromDays, tursoServerNow, tursoKnownUrls
+        tursoExecute, tursoAuthorFromUrl, tursoEnsureSchema, tursoEnsureTable,
+        tursoUploadPairs, tursoCounts, tursoTopMentions, tursoDailyCounts, tursoCoverage, tursoCoverageFromDays, tursoServerNow, tursoKnownUrls
     };
 }
