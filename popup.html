@@ -266,6 +266,34 @@
         input[type="date"] { color-scheme: dark; min-width: 0; }
         .deadline { margin-top: 14px; }
         .deadline button { min-height: 38px; }
+        .deadline .actions { margin-top: 8px; }
+        .deadline .actions button { min-height: 36px; }
+        .grow { flex: 1; min-width: 0; }
+
+        /* ---------- Coverage ---------- */
+        .coverage {
+            margin-bottom: 12px;
+            padding: 12px 14px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+        }
+        .cov-label {
+            color: var(--muted);
+            font-size: 10.5px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .cov-range { margin-top: 3px; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+        .cov-range.muted { color: var(--muted); }
+        .cov-sub { margin-top: 3px; color: var(--muted); font-size: 12px; }
+        .cov-sub b { color: var(--text); font-weight: 600; }
+        .cov-missing { margin-top: 6px; padding: 6px 8px; border-radius: 8px; color: var(--warn);
+                       background: rgba(245, 184, 75, 0.10); border: 1px solid rgba(245, 184, 75, 0.28); }
+        .cov-missing .old { color: var(--muted); }
+        .cov-ok { margin-top: 6px; color: var(--up); font-weight: 600; }
+        .cov-edge { margin-top: 6px; }
 
         /* ---------- Database card ---------- */
         .conn {
@@ -334,6 +362,7 @@
         .seg-btn:hover { background: transparent; color: var(--text); }
         .seg-btn.active { color: #fff; background: var(--surface-2); box-shadow: 0 1px 0 var(--border-strong); }
 
+        .checks { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
         .check {
             display: inline-flex;
             align-items: center;
@@ -457,6 +486,10 @@
                 <input type="date" id="stopDate" class="grow">
                 <button id="clearDateBtn" class="btn-sm" type="button" title="Remove the deadline">Clear</button>
             </div>
+            <div class="row actions">
+                <button id="catchUpBtn" class="btn-sm btn-primary-soft grow" type="button" title="Set the deadline to the end of the last collected data, so only what is new gets collected">Catch up</button>
+                <button id="fillGapBtn" class="btn-sm btn-primary-soft grow" type="button" title="Start scrolling and stop once the oldest fillable gap is filled">Fill gaps</button>
+            </div>
         </div>
         <p class="hint" id="deadlineHint">No deadline: scrolls until you stop it.</p>
     </section>
@@ -480,6 +513,12 @@
         <div class="card-head">
             <h2 class="card-title">Database</h2>
             <div class="conn" id="tursoStatus"><span class="dot"></span><span>Checking&hellip;</span></div>
+        </div>
+
+        <div class="coverage" id="coverage">
+            <div class="cov-label">Collected so far</div>
+            <div class="cov-range num" id="covRange">&ndash;</div>
+            <div class="cov-sub" id="covSub">Checking&hellip;</div>
         </div>
 
         <button id="uploadBtn" class="btn-block btn-primary-soft" type="button">
@@ -532,10 +571,16 @@
                 <button id="modeTickers" class="seg-btn active" type="button" aria-pressed="true">Tickers</button>
                 <button id="modeAuthors" class="seg-btn" type="button" aria-pressed="false">Authors</button>
             </div>
-            <label class="check" for="includeCrypto">
-                <input type="checkbox" id="includeCrypto">
-                <span>Include crypto</span>
-            </label>
+            <div class="checks">
+                <label class="check" for="uniquePerDay" title="Count each author at most once per ticker per day">
+                    <input type="checkbox" id="uniquePerDay" checked>
+                    <span>One per author per day</span>
+                </label>
+                <label class="check" for="includeCrypto">
+                    <input type="checkbox" id="includeCrypto">
+                    <span>Include crypto</span>
+                </label>
+            </div>
         </div>
 
         <div id="results" hidden>

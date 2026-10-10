@@ -180,11 +180,16 @@ browserAPI.runtime.onMessage.addListener((message, sender) => {
     } else if (message.type === 'AUTO_SCROLL_STATUS') {
         if (message.isScrolling) {
             browserAPI.browserAction.setBadgeText({ text: '' });
-        } else if (message.reason === 'deadline') {
-            // Collection finished: upload now and mark the toolbar icon in case the popup is closed
+        } else if (message.reason === 'deadline' || message.reason === 'known' || message.reason === 'end-of-feed') {
+            // Stopped by itself: upload now and mark the toolbar icon in case the popup is closed
+            // (green tick = reached the deadline, amber ! = X stopped serving older posts)
             scheduleFlush(0);
-            browserAPI.browserAction.setBadgeBackgroundColor({ color: '#2dd4a0' });
-            browserAPI.browserAction.setBadgeText({ text: '\u2713' });
+            const done = message.reason !== 'end-of-feed';
+            if (message.reason === 'end-of-feed' && message.oldest) {
+                browserAPI.storage.local.set({ feedFloor: message.oldest });
+            }
+            browserAPI.browserAction.setBadgeBackgroundColor({ color: done ? '#2dd4a0' : '#f5b84b' });
+            browserAPI.browserAction.setBadgeText({ text: done ? '\u2713' : '!' });
         } else {
             browserAPI.browserAction.setBadgeText({ text: '' });
         }
@@ -195,10 +200,18 @@ browserAPI.runtime.onMessage.addListener((message, sender) => {
         return loadFileConfig().then(cfg => (cfg ? cfg.url.replace(/^\w+:\/\//, '') : null));
     } else if (message.type === 'GET_TOP_MENTIONS') {
         return getTursoConfig().then(config =>
-            tursoTopMentions(config, rangeCutoff(message.days), 10, !!message.includeCrypto));
+            tursoTopMentions(config, rangeCutoff(message.days), 10, !!message.includeCrypto, message.unique !== false));
     } else if (message.type === 'GET_TOP_AUTHORS') {
         return getTursoConfig().then(config =>
-            tursoTopAuthors(config, rangeCutoff(message.days), 10, !!message.includeCrypto));
+            tursoTopAuthors(config, rangeCutoff(message.days), 10, !!message.includeCrypto, message.unique !== false));
+    } else if (message.type === 'GET_SERVER_TIME') {
+        return getTursoConfig().then(tursoServerNow);
+    } else if (message.type === 'CHECK_KNOWN') {
+        return getTursoConfig().then(config => tursoKnownUrls(config, message.urls, message.before));
+    } else if (message.type === 'GET_COVERAGE') {
+        // feedFloor: the oldest post the feed served when it last ended; older gaps cannot be filled
+        return Promise.all([getTursoConfig(), browserAPI.storage.local.get('feedFloor')])
+            .then(([config, stored]) => tursoCoverage(config, stored.feedFloor ? stored.feedFloor.slice(0, 10) : null));
     } else if (message.type === 'GET_DB_COUNTS') {
         return getTursoConfig().then(tursoCounts);
     } else if (message.type === 'SYNC_NOW') {
